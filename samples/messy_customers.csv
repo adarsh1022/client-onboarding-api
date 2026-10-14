@@ -1,0 +1,12 @@
+Customer Name,E-mail Address,Phone No.,Country,Sign-Up Date,Notes
+Asha Rao,asha.rao@example.com,+91 98765 43210,India,2024-03-01,VIP
+John  Smith ,JOHN.SMITH@Example.com,(415) 555-0134,USA,15/07/2023,
+Priya Sharma,priya@example.in,9123456780,IN,01-02-2025,"referred by Asha, follow up"
+Mark Lee,mark.lee@example,,UK,,missing domain
+Sofia Müller,sofia@example.de,,Germany,2022-11-30,
+,,,,,
+,ken.tanaka@example.jp,12345,Japan,,name not provided
+Ravi Kumar,ravi.kumar@example.com,98200 11223,india,05/06/2024,
+Asha Rao (duplicate),Asha.Rao@example.com,,IN,,sent twice by client
+Liam Chen,liam.chen@example.sg,+65 9123 4567,Singapore,2025-08-20,
+Emma Brown,emma@example.com.au,,Narnia,,typo in country

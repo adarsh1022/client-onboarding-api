@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: onboarding
+          POSTGRES_PASSWORD: onboarding
+          POSTGRES_DB: onboarding
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U onboarding"
+          --health-interval 2s --health-timeout 3s --health-retries 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check .
+      - name: Migrations apply cleanly on PostgreSQL
+        env:
+          DATABASE_URL: postgresql+psycopg://onboarding:onboarding@localhost:5432/onboarding
+        run: alembic upgrade head
+      - name: Tests
+        run: pytest -v
