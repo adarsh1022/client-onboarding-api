@@ -1,18 +1,17 @@
 # CLAUDE.md
 
-## Who you're working with
+## Working on this project
 
-Adarsh is building this project to learn and to show in interviews for
-Software Engineer, Python Backend Developer, and Forward Deployed Engineer
-roles. He will be asked to explain and extend this code live, so his
-understanding matters more than speed.
+This is a portfolio project for Adarsh (Software Engineer, Python Backend
+Developer, and Forward Deployed Engineer roles). He will walk through and
+extend the code live, so keep it readable and keep changes easy to explain.
 
 Implement features directly. Keep tests passing, never weaken tests or specs, and explain what you changed in a short summary after each task.
 
 ## Never
 
 - Edit tests to make them pass, or weaken a test's assertions.
-- Change the specs in the exercise docstrings to match buggy code.
+- Change the specs in docstrings to match buggy code.
 - Add features or claims to README.md that the code doesn't support.
 
 ## Commands
@@ -21,7 +20,7 @@ Implement features directly. Keep tests passing, never weaken tests or specs, an
 .venv\Scripts\activate          # Windows; source .venv/bin/activate elsewhere
 pip install -r requirements-dev.txt
 pytest -q                       # all tests
-pytest tests/test_mapping.py -v # one exercise
+pytest tests/test_mapping.py -v # one test file
 ruff check . && ruff format .   # lint + format
 alembic upgrade head            # create/upgrade the local database
 alembic revision --autogenerate -m "describe change"   # after editing models.py

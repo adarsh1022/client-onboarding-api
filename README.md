@@ -1,5 +1,7 @@
 # Client Data Onboarding API
 
+[![CI](https://github.com/adarsh1022/client-onboarding-api/actions/workflows/ci.yml/badge.svg)](https://github.com/adarsh1022/client-onboarding-api/actions/workflows/ci.yml)
+
 A FastAPI service that takes the messy customer files clients actually send
 (CSV or Excel, inconsistent column names, mixed date formats, typos, duplicates),
 maps and validates every row, loads the clean records into PostgreSQL, and
