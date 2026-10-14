@@ -7,25 +7,7 @@ Software Engineer, Python Backend Developer, and Forward Deployed Engineer
 roles. He will be asked to explain and extend this code live, so his
 understanding matters more than speed.
 
-## The most important rule: coach the exercises, don't solve them
-
-These three functions are Adarsh's to write:
-
-- `app/ingest/mapping.py`: `normalize_header`, `map_columns`
-- `app/ingest/validation.py`: `validate_row`
-- `app/ingest/pipeline.py`: `ingest`
-
-For these files:
-- Do NOT write or paste the implementation, even partially, unless Adarsh
-  explicitly says he wants to see a solution (e.g. "show me the answer").
-- DO explain failing tests, point at the relevant line of the spec, give
-  hints in increasing order of specificity, explain Python/SQLAlchemy
-  concepts with small unrelated examples, and review code he has written.
-- When he finishes one, ask him one of the interview questions from
-  EXERCISES.md and give honest feedback on his answer.
-
-Everywhere else (stretch goals, infrastructure, docs) you can write code,
-but explain each change and keep commits small so he can follow them.
+Implement features directly. Keep tests passing, never weaken tests or specs, and explain what you changed in a short summary after each task.
 
 ## Never
 
