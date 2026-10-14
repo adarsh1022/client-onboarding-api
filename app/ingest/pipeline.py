@@ -9,12 +9,14 @@ Run the tests for this exercise with:
 
 from datetime import date
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ingest.mapping import MappingError, map_columns  # noqa: F401
+from app.ingest.mapping import MappingError, map_columns
 from app.ingest.reader import ParsedFile
-from app.ingest.validation import validate_row  # noqa: F401
-from app.models import Customer, RowError, Upload, UploadStatus, utcnow  # noqa: F401
+from app.ingest.validation import validate_row
+from app.models import Customer, RowError, Upload, UploadStatus, utcnow
+from app.schemas import CleanCustomer, FieldError
 
 
 def ingest(session: Session, upload: Upload, parsed: ParsedFile, today: date | None = None) -> None:
@@ -54,4 +56,86 @@ def ingest(session: Session, upload: Upload, parsed: ParsedFile, today: date | N
     Think about: how you look up existing customers. One query per row works,
     but how would you avoid that for a 50,000-row file?
     """
-    raise NotImplementedError("Exercise 3: implement ingest")
+    try:
+        columns = map_columns(parsed.headers)
+    except MappingError as error:
+        upload.status = UploadStatus.FAILED
+        upload.error_message = str(error)
+        upload.finished_at = utcnow()
+        session.commit()
+        return
+
+    total_rows = 0
+    invalid_rows = 0
+    to_save: list[tuple[int, CleanCustomer]] = []
+    seen_emails: set[str] = set()
+
+    # Pass 1: validate every row and decide which ones are candidates to save.
+    for row_number, raw_row in enumerate(parsed.rows, start=2):
+        if all(not (value or "").strip() for value in raw_row.values()):
+            continue
+        total_rows += 1
+
+        mapped = {field: raw_row.get(header, "") for field, header in columns.items()}
+        clean, field_errors = validate_row(mapped, today=today)
+
+        if clean is not None and clean.email in seen_emails:
+            clean = None
+            field_errors = [FieldError(field="email", message="duplicate email in file")]
+
+        if clean is None:
+            invalid_rows += 1
+            for field_error in field_errors:
+                session.add(
+                    RowError(
+                        upload_id=upload.id,
+                        row_number=row_number,
+                        field=field_error.field,
+                        message=field_error.message,
+                    )
+                )
+            continue
+
+        seen_emails.add(clean.email)
+        to_save.append((row_number, clean))
+
+    # Pass 2: one query for every existing customer in this file, then upsert in memory.
+    existing: dict[str, Customer] = {}
+    if seen_emails:
+        existing = {
+            customer.email: customer
+            for customer in session.scalars(select(Customer).where(Customer.email.in_(seen_emails)))
+        }
+
+    inserted = 0
+    updated = 0
+    for _, clean in to_save:
+        customer = existing.get(clean.email)
+        if customer is None:
+            session.add(
+                Customer(
+                    email=clean.email,
+                    name=clean.name,
+                    phone=clean.phone,
+                    country_code=clean.country_code,
+                    signup_date=clean.signup_date,
+                    source_upload_id=upload.id,
+                )
+            )
+            inserted += 1
+        else:
+            customer.name = clean.name
+            customer.phone = clean.phone
+            customer.country_code = clean.country_code
+            customer.signup_date = clean.signup_date
+            customer.source_upload_id = upload.id
+            updated += 1
+
+    upload.total_rows = total_rows
+    upload.invalid_rows = invalid_rows
+    upload.valid_rows = total_rows - invalid_rows
+    upload.inserted = inserted
+    upload.updated = updated
+    upload.status = UploadStatus.COMPLETED
+    upload.finished_at = utcnow()
+    session.commit()
