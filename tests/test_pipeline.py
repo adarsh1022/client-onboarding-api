@@ -1,11 +1,13 @@
 """Exercise 3 tests. These fail until app/ingest/pipeline.py is implemented
 (they also rely on Exercises 1 and 2)."""
 
+import math
+import sqlite3
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import event, select
 
-from app.ingest.pipeline import ingest
+from app.ingest.pipeline import LOOKUP_BATCH_SIZE, ingest
 from app.ingest.reader import ParsedFile
 from app.models import Customer, RowError, Upload, UploadStatus
 
@@ -104,6 +106,46 @@ def test_existing_customer_is_updated_not_duplicated(session):
     assert customers[0].name == "Asha R. Rao"
     assert customers[0].phone == "9876543210"
     assert customers[0].source_upload_id == second.id
+
+
+def test_large_file_looks_up_existing_customers_in_batches(session):
+    row_count = 2500
+
+    def big_file(label):
+        return make_file(
+            *[[f"{label} {i}", f"user{i}@x.com", "", "IN", ""] for i in range(row_count)]
+        )
+
+    first = new_upload(session)
+    ingest(session, first, big_file("First"), today=TODAY)
+    assert (first.inserted, first.updated) == (row_count, 0)
+
+    # Cap SQLite's bound parameters at the batch size: one IN (...) holding all
+    # 2,500 emails would now fail with "too many SQL variables".
+    raw = session.connection().connection.driver_connection
+    original_limit = raw.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, LOOKUP_BATCH_SIZE)
+
+    lookups = []
+
+    def count_customer_lookups(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("SELECT") and "FROM customers" in statement:
+            lookups.append(statement)
+
+    engine = session.get_bind()
+    event.listen(engine, "before_cursor_execute", count_customer_lookups)
+    try:
+        second = new_upload(session)
+        ingest(session, second, big_file("Second"), today=TODAY)
+    finally:
+        event.remove(engine, "before_cursor_execute", count_customer_lookups)
+        raw.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, original_limit)
+
+    assert (second.inserted, second.updated) == (0, row_count)
+    assert len(lookups) == math.ceil(row_count / LOOKUP_BATCH_SIZE)
+    assert len(session.scalars(select(Customer)).all()) == row_count
+    assert session.scalar(select(Customer.name).where(Customer.email == "user2499@x.com")) == (
+        "Second 2499"
+    )
 
 
 def test_unmappable_file_fails_upload(session):

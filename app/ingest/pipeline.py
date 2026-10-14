@@ -1,9 +1,8 @@
-"""EXERCISE 3 - The ingestion pipeline.
+"""The ingestion pipeline.
 
-Ties mapping (Exercise 1) and validation (Exercise 2) together and writes
-the results to the database.
+Ties mapping and validation together and writes the results to the database.
 
-Run the tests for this exercise with:
+Run the tests with:
     pytest tests/test_pipeline.py -v
 """
 
@@ -17,6 +16,9 @@ from app.ingest.reader import ParsedFile
 from app.ingest.validation import validate_row
 from app.models import Customer, RowError, Upload, UploadStatus, utcnow
 from app.schemas import CleanCustomer, FieldError
+
+# Emails per existing-customer lookup; keeps each IN (...) under DB parameter limits.
+LOOKUP_BATCH_SIZE = 1000
 
 
 def ingest(session: Session, upload: Upload, parsed: ParsedFile, today: date | None = None) -> None:
@@ -53,8 +55,9 @@ def ingest(session: Session, upload: Upload, parsed: ParsedFile, today: date | N
            inserted / updated as counted above
          Then status = COMPLETED, finished_at = utcnow(), and commit.
 
-    Think about: how you look up existing customers. One query per row works,
-    but how would you avoid that for a 50,000-row file?
+    Existing customers are loaded in batches of LOOKUP_BATCH_SIZE emails, one
+    query per batch instead of one per row. Batching also keeps each query under
+    the database's bound-parameter limit, so a 50,000-row file works.
     """
     try:
         columns = map_columns(parsed.headers)
@@ -99,13 +102,13 @@ def ingest(session: Session, upload: Upload, parsed: ParsedFile, today: date | N
         seen_emails.add(clean.email)
         to_save.append((row_number, clean))
 
-    # Pass 2: one query for every existing customer in this file, then upsert in memory.
+    # Pass 2: look up existing customers in batches (not one query per row), then upsert in memory.
     existing: dict[str, Customer] = {}
-    if seen_emails:
-        existing = {
-            customer.email: customer
-            for customer in session.scalars(select(Customer).where(Customer.email.in_(seen_emails)))
-        }
+    emails = list(seen_emails)
+    for start in range(0, len(emails), LOOKUP_BATCH_SIZE):
+        batch = emails[start : start + LOOKUP_BATCH_SIZE]
+        for customer in session.scalars(select(Customer).where(Customer.email.in_(batch))):
+            existing[customer.email] = customer
 
     inserted = 0
     updated = 0
