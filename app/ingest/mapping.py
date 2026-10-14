@@ -8,6 +8,8 @@ Run the tests for this exercise with:
     pytest tests/test_mapping.py -v
 """
 
+import re
+
 # Canonical field -> accepted header spellings, already normalized
 # (see normalize_header). Extend these lists if a client sends something new.
 HEADER_ALIASES: dict[str, list[str]] = {
@@ -42,7 +44,8 @@ def normalize_header(header: str) -> str:
 
     Hint: the `re` module.
     """
-    raise NotImplementedError("Exercise 1: implement normalize_header")
+    lowered = header.lower().strip()
+    return re.sub(r"[^a-z0-9]+", "_", lowered).strip("_")
 
 
 def map_columns(headers: list[str]) -> dict[str, str]:
@@ -63,4 +66,22 @@ def map_columns(headers: list[str]) -> dict[str, str]:
         e.g. "missing required columns: country, email"
       - Check ambiguity first, then missing columns.
     """
-    raise NotImplementedError("Exercise 1: implement map_columns")
+    alias_to_field = {
+        alias: field for field, aliases in HEADER_ALIASES.items() for alias in aliases
+    }
+
+    matches: dict[str, list[str]] = {}
+    for header in headers:
+        field = alias_to_field.get(normalize_header(header))
+        if field is not None:
+            matches.setdefault(field, []).append(header)
+
+    for field, originals in matches.items():
+        if len(originals) > 1:
+            raise MappingError(f"ambiguous column for '{field}': {', '.join(originals)}")
+
+    missing = sorted(REQUIRED_FIELDS - matches.keys())
+    if missing:
+        raise MappingError(f"missing required columns: {', '.join(missing)}")
+
+    return {field: originals[0] for field, originals in matches.items()}
