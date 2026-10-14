@@ -7,7 +7,8 @@ Run the tests for this exercise with:
     pytest tests/test_validation.py -v
 """
 
-from datetime import date
+import re
+from datetime import date, datetime
 
 from app.schemas import CleanCustomer, FieldError
 
@@ -30,6 +31,8 @@ KNOWN_COUNTRY_CODES = set(COUNTRY_ALIASES.values())
 
 # Accepted date formats, tried in this order.
 DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"]
+
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def validate_row(
@@ -74,4 +77,65 @@ def validate_row(
       - None parse -> "unrecognized date 'X'" (X = stripped original value).
       - Parsed date after `today` -> "cannot be in the future".
     """
-    raise NotImplementedError("Exercise 2: implement validate_row")
+    today = today or date.today()
+    errors: list[FieldError] = []
+
+    def fail(field: str, message: str) -> None:
+        errors.append(FieldError(field=field, message=message))
+
+    name = " ".join((row.get("name") or "").split())
+    if not name:
+        fail("name", "required")
+
+    email = (row.get("email") or "").strip().lower()
+    if not email:
+        fail("email", "required")
+    elif not EMAIL_PATTERN.match(email):
+        fail("email", "invalid format")
+
+    phone: str | None = None
+    raw_phone = (row.get("phone") or "").strip()
+    if raw_phone:
+        digits = re.sub(r"[^0-9]", "", raw_phone)
+        if 10 <= len(digits) <= 15:
+            phone = digits
+        else:
+            fail("phone", "must have 10-15 digits")
+
+    country_code: str | None = None
+    raw_country = (row.get("country") or "").strip()
+    if not raw_country:
+        fail("country", "required")
+    elif len(raw_country) == 2 and raw_country.upper() in KNOWN_COUNTRY_CODES:
+        country_code = raw_country.upper()
+    elif raw_country.lower() in COUNTRY_ALIASES:
+        country_code = COUNTRY_ALIASES[raw_country.lower()]
+    else:
+        fail("country", f"unknown country '{raw_country}'")
+
+    signup_date: date | None = None
+    raw_date = (row.get("signup_date") or "").strip()
+    if raw_date:
+        for date_format in DATE_FORMATS:
+            try:
+                signup_date = datetime.strptime(raw_date, date_format).date()
+                break
+            except ValueError:
+                continue
+        if signup_date is None:
+            fail("signup_date", f"unrecognized date '{raw_date}'")
+        elif signup_date > today:
+            fail("signup_date", "cannot be in the future")
+
+    if errors or country_code is None:
+        return None, errors
+    return (
+        CleanCustomer(
+            name=name,
+            email=email,
+            phone=phone,
+            country_code=country_code,
+            signup_date=signup_date,
+        ),
+        [],
+    )
