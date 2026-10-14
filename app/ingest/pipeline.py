@@ -1,9 +1,6 @@
 """The ingestion pipeline.
 
 Ties mapping and validation together and writes the results to the database.
-
-Run the tests with:
-    pytest tests/test_pipeline.py -v
 """
 
 from datetime import date

@@ -1,5 +1,4 @@
-"""Exercise 3 tests. These fail until app/ingest/pipeline.py is implemented
-(they also rely on Exercises 1 and 2)."""
+"""Tests for the ingestion pipeline (mapping, validation, dedupe, upsert)."""
 
 import math
 import sqlite3

@@ -1,4 +1,4 @@
-"""API behaviour that does not depend on the exercises."""
+"""API behaviour that does not depend on the ingestion logic: health, upload checks, 404s."""
 
 from app.models import Customer
 

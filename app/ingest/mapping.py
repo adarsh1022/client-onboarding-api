@@ -1,11 +1,8 @@
-"""EXERCISE 1 - Column mapping.
+"""Column mapping.
 
 Clients never send the same column names. One sends "E-mail Address", another
 "email", another "Mail". This module maps whatever headers arrive onto our
 canonical field names.
-
-Run the tests for this exercise with:
-    pytest tests/test_mapping.py -v
 """
 
 import re

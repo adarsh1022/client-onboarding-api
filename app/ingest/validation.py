@@ -1,10 +1,7 @@
-"""EXERCISE 2 - Row validation and cleaning.
+"""Row validation and cleaning.
 
 Takes one row (already mapped to canonical field names, raw string values)
 and returns either a CleanCustomer or the list of everything wrong with it.
-
-Run the tests for this exercise with:
-    pytest tests/test_validation.py -v
 """
 
 import re

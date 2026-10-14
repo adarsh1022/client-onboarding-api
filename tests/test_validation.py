@@ -1,4 +1,4 @@
-"""Exercise 2 tests. These fail until app/ingest/validation.py is implemented."""
+"""Tests for row validation and cleaning."""
 
 from datetime import date
 

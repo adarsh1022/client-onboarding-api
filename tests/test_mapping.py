@@ -1,4 +1,4 @@
-"""Exercise 1 tests. These fail until app/ingest/mapping.py is implemented."""
+"""Tests for header normalization and column mapping."""
 
 import pytest
 

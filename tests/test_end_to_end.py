@@ -1,7 +1,4 @@
-"""Full flow through the HTTP API, using the sample file in samples/.
-
-Passes once all three exercises are done.
-"""
+"""Full flow through the HTTP API, using the sample file in samples/."""
 
 from pathlib import Path
 
