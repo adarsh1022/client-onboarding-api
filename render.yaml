@@ -1,0 +1,31 @@
+# Render Blueprint for a free public demo. See docs/DEPLOY.md for the step-by-step guide.
+#
+# The database is a free Neon Postgres, created by hand and passed in as DATABASE_URL.
+# (Render's own free Postgres is deleted after 30 days.) Nothing secret lives in this file:
+# the two `sync: false` variables are asked for once, in Render's dashboard.
+services:
+  - type: web
+    name: client-onboarding-api
+    runtime: python
+    plan: free
+    # Pick the same region for the Neon database (Oregon = "AWS US West 2").
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    # Free services have no pre-deploy hook, so migrations run as the service starts.
+    # If one fails the service doesn't come up, which is what you want.
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      # Free, offline suggestions: never calls a paid API.
+      - key: SUGGESTER
+        value: heuristic
+      # Neon's connection string (postgresql://...). Secret: set it in the dashboard.
+      - key: DATABASE_URL
+        sync: false
+      # The demo API key (32+ characters). Secret: set it in the dashboard. The app stores
+      # only its hash. Change this value to rotate the key.
+      - key: BOOTSTRAP_API_KEY
+        sync: false

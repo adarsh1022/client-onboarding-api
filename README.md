@@ -58,7 +58,32 @@ client file ──► POST /uploads ──► 202 Accepted (upload id)
 | `GET` | `/customers` | Paginated customers; filter by `country`, search with `q` |
 | `GET` | `/health` | Liveness check |
 
-Interactive docs at `http://localhost:8000/docs` once running.
+Every endpoint except `/health` needs an API key in the `X-API-Key` header; see
+[Authentication](#authentication). Interactive docs are at `http://localhost:8000/docs` once
+running: click **Authorize** there and paste a key to try the endpoints.
+
+## Authentication
+
+Create a key, then send it with every request:
+
+```bash
+python -m app.cli create-key --name me          # prints the key once: copy it now
+export KEY=ob_...                               # PowerShell:  $env:KEY = "ob_..."
+curl -H "X-API-Key: $KEY" http://localhost:8000/customers
+```
+
+Only a SHA-256 hash of each key is stored, so a lost key can't be recovered: make a new one.
+`python -m app.cli list-keys` shows them (never the keys themselves) and
+`python -m app.cli revoke-key <id>` stops one working. A missing, unknown or revoked key all
+get the same `401`.
+
+`POST /uploads` and `POST /uploads/{id}/reprocess` share a per-key limit of 10 per minute
+(`RATE_LIMIT_UPLOADS`, `RATE_LIMIT_WINDOW_SECONDS`; 0 turns it off) and answer `429` with a
+`Retry-After` header over it. The counters are in memory, so they are per process and reset
+on restart: fine for one small instance, but several instances would each count separately.
+
+On a host with no shell, set `BOOTSTRAP_API_KEY` (32+ characters) and the app creates that key,
+hashed, when it starts. Changing the value rotates it.
 
 ## Column suggestions
 
@@ -74,11 +99,12 @@ If a **required** column can only be matched by a pending suggestion, the upload
 `needs_review` instead of `failed`:
 
 ```bash
-curl -F "file=@file.csv" -F "client_id=1" http://localhost:8000/uploads   # -> needs_review
-curl http://localhost:8000/uploads/1/suggestions                          # what was suggested
-curl -X POST http://localhost:8000/suggestions/1/approve                  # or send {"field": "email"}
-curl -X POST http://localhost:8000/suggestions/2/reject
-curl -X POST http://localhost:8000/uploads/1/reprocess                    # -> completed
+H="X-API-Key: $KEY"
+curl -H "$H" -F "file=@file.csv" -F "client_id=1" http://localhost:8000/uploads   # -> needs_review
+curl -H "$H" http://localhost:8000/uploads/1/suggestions                          # what was suggested
+curl -H "$H" -X POST http://localhost:8000/suggestions/1/approve                  # or send {"field": "email"}
+curl -H "$H" -X POST http://localhost:8000/suggestions/2/reject
+curl -H "$H" -X POST http://localhost:8000/uploads/1/reprocess                    # -> completed
 ```
 
 Approving also saves the mapping to the upload's client profile, so that client's next
@@ -159,10 +185,21 @@ uvicorn app.main:app --reload
 Try it with the sample file:
 
 ```bash
-curl -F "file=@samples/messy_customers.csv" http://localhost:8000/uploads
-curl http://localhost:8000/uploads/1
-curl http://localhost:8000/uploads/1/errors
+python -m app.cli create-key --name me      # once; copy the key it prints
+H="X-API-Key: ob_..."
+curl -H "$H" -F "file=@samples/messy_customers.csv" http://localhost:8000/uploads
+curl -H "$H" http://localhost:8000/uploads/1
+curl -H "$H" http://localhost:8000/uploads/1/errors
 ```
+
+## Free public demo
+
+The repo includes a [`render.yaml`](render.yaml) for a zero-cost deployment: a Render free web
+service plus a free Neon PostgreSQL database, with `SUGGESTER=heuristic` so nothing paid is
+ever called and no secret in the repo. [`docs/DEPLOY.md`](docs/DEPLOY.md) walks through it step
+by step. Free-tier trade-offs: the service sleeps after 15 idle minutes and takes about a
+minute to wake, and Neon's database suspends after 5 idle minutes. Once it is up,
+`python scripts/smoke_test.py https://your-service.onrender.com` checks it end to end.
 
 ## Tests
 

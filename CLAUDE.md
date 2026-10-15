@@ -30,6 +30,12 @@ docker compose up --build       # run with PostgreSQL
 
 ## Architecture
 
+- `app/auth.py`: API keys. Every endpoint except `/health` (and `/docs`) needs a valid
+  `X-API-Key`; only the SHA-256 hash is stored. New endpoints go on `router` (protected), never
+  `public_router`; a test walks the OpenAPI schema and fails on any unprotected route.
+  `app/ratelimit.py` limits the upload endpoints per key (in memory). `app/cli.py` manages keys.
+- `render.yaml` + `docs/DEPLOY.md`: the free Render + Neon demo. Never commit secrets: they are
+  `sync: false` variables set in the Render dashboard.
 - `app/api/routes.py`: FastAPI endpoints. `POST /uploads` stores an Upload row
   and schedules `process_upload` as a background task, returning 202.
 - `app/ingest/service.py`: background task. Opens its own session, reads
