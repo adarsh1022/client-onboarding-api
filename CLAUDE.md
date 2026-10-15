@@ -37,16 +37,22 @@ docker compose up --build       # run with PostgreSQL
 - `app/ingest/reader.py`: CSV/XLSX -> `ParsedFile(headers, rows)`, all values strings.
 - `app/ingest/mapping.py` -> `validation.py` -> `pipeline.py`: the core flow.
 - Column matching order: static `HEADER_ALIASES`, then the client's approved profile plus
-  suggestions approved for the upload, then the LLM (`app/ingest/suggester.py`) for what is
-  still unknown. Suggestions are stored `pending` and applied only once approved. If a required
-  column can only come from a pending suggestion the upload is `needs_review`, not `failed`.
-- `app/ingest/suggester.py`: the `MappingSuggester` protocol and `ClaudeSuggester`. Emails and
-  phones are masked before samples leave the process. No `ANTHROPIC_API_KEY` means no suggester.
+  suggestions approved for the upload, then a suggester for what is still unknown. Suggestions
+  are stored `pending` and applied only once approved. If a required column can only come from a
+  pending suggestion the upload is `needs_review`, not `failed`.
+- Suggesters implement the `MappingSuggester` protocol (`app/ingest/suggester.py`) and are chosen
+  by `SUGGESTER` in `app/ingest/factory.py`: `heuristic` (default, free, offline rules in
+  `heuristic.py`), `ollama` (local model, `ollama.py`) or `claude` (paid; no
+  `ANTHROPIC_API_KEY` means no suggester). Emails and phones are masked before samples reach any
+  suggester.
+- `evals/`: `mapping_cases.jsonl` plus `run_mapping_eval.py`. CI fails if the heuristic's score
+  drops below `evals/baseline.json`. After changing the heuristic or the cases, re-run the eval,
+  update the baseline deliberately (`--update-baseline`) and record the result in `RESULTS.md`.
 - `app/models.py`: SQLAlchemy 2.0 typed models. `Customer.email` is unique. `Upload.content`
   keeps the original file bytes so an upload can be reprocessed.
 - Tests use in-memory SQLite (see `tests/conftest.py`); production uses PostgreSQL.
-- Tests never call the real Anthropic API: use the fakes in `tests/fakes.py`. A conftest fixture
-  removes any API key and makes a real SDK call raise.
+- Tests never call the real Anthropic API or Ollama: use the fakes in `tests/fakes.py`. A conftest
+  fixture selects the heuristic suggester, removes any API key and makes a real SDK call raise.
 
 ## Conventions
 

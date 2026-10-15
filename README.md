@@ -33,9 +33,10 @@ client file ──► POST /uploads ──► 202 Accepted (upload id)
 
 - **Column mapping** with configurable header aliases; fails fast with a clear
   message when required columns are missing or ambiguous.
-- **AI-assisted mapping (optional)**: headers the aliases don't recognise can be
-  matched by Claude. Suggestions need a human's approval and are remembered per
-  client. See [AI-assisted column mapping](#ai-assisted-column-mapping).
+- **Suggested mappings, free by default**: headers the aliases don't recognise get a
+  suggested field from offline rules, a local Ollama model, or (optionally, paid) Claude.
+  Suggestions need a human's approval and are remembered per client. See
+  [Column suggestions](#column-suggestions).
 - **Row validation** that collects every problem in a row, not just the first.
 - **Idempotent loading**: re-uploading a file updates existing customers
   instead of duplicating them; duplicates inside one file are reported.
@@ -59,14 +60,14 @@ client file ──► POST /uploads ──► 202 Accepted (upload id)
 
 Interactive docs at `http://localhost:8000/docs` once running.
 
-## AI-assisted column mapping
+## Column suggestions
 
 Headers are matched in this order:
 
 1. the built-in aliases (`HEADER_ALIASES`);
 2. the client's approved mapping profile (when the upload has a `client_id`), plus any
    suggestions already approved for that upload;
-3. Claude, for headers still unrecognised while some field is still unmapped.
+3. a **suggester**, for headers still unrecognised while some field is still unmapped.
 
 Suggestions are stored as `pending` and are never applied until someone approves them.
 If a **required** column can only be matched by a pending suggestion, the upload ends as
@@ -74,34 +75,68 @@ If a **required** column can only be matched by a pending suggestion, the upload
 
 ```bash
 curl -F "file=@file.csv" -F "client_id=1" http://localhost:8000/uploads   # -> needs_review
-curl http://localhost:8000/uploads/1/suggestions                          # what Claude proposes
+curl http://localhost:8000/uploads/1/suggestions                          # what was suggested
 curl -X POST http://localhost:8000/suggestions/1/approve                  # or send {"field": "email"}
 curl -X POST http://localhost:8000/suggestions/2/reject
 curl -X POST http://localhost:8000/uploads/1/reprocess                    # -> completed
 ```
 
 Approving also saves the mapping to the upload's client profile, so that client's next
-file with the same header maps with no model call. An upload with no client only benefits
-itself.
+file with the same header maps with no suggester call. An upload with no client only
+benefits itself.
 
-**Setup.** It is off unless `ANTHROPIC_API_KEY` is set; without a key the service behaves
-as if the feature didn't exist, and uploads with unknown headers simply fail. Settings:
+**Choosing a suggester** with `SUGGESTER`:
+
+| `SUGGESTER` | Cost | What it does |
+|---|---|---|
+| `heuristic` (default) | free | Offline rules: fuzzy header matching against the aliases (plus some abbreviations and Hindi, German and Spanish words) combined with checks on the sample values (emails, 10-15 digit numbers, dates, countries, names). No network, no setup. |
+| `ollama` | free | A local open model served by [Ollama](https://ollama.com), default `qwen2.5:3b`. Needs `ollama serve` running and the model pulled. |
+| `claude` | paid | Claude through the Anthropic API. Needs `ANTHROPIC_API_KEY`; without one, suggestions are skipped. |
+
+How well they do is measured on a small eval set, see [Evals](#evals). The heuristic gets
+66 of 67 cases right on the repo's own set, but the cases were written by the same person as
+the rules, so treat that as a regression guard rather than a promise: its first run on the
+holdout cases, before any fixes, was 86.7%. `OllamaSuggester` is tested against a stand-in
+server but has not been measured with a real model yet.
 
 | Variable | Default | |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | unset | Enables suggestions |
-| `LLM_MODEL` | `claude-haiku-5-5` | Model used for suggestions |
-| `LLM_TIMEOUT_SECONDS` | `20` | Per-request timeout |
+| `SUGGESTER` | `heuristic` | `heuristic`, `ollama` or `claude` |
+| `OLLAMA_URL` | `http://localhost:11434` | Where Ollama is listening |
+| `OLLAMA_MODEL` | `qwen2.5:3b` | Any model you have pulled |
+| `OLLAMA_TIMEOUT_SECONDS` | `60` | Per-request timeout (small models can be slow on a CPU) |
+| `OLLAMA_MAX_RETRIES` | `2` | Retries with backoff when Ollama is unreachable or returns 5xx |
+| `ANTHROPIC_API_KEY` | unset | Needed for `SUGGESTER=claude` |
+| `LLM_MODEL` | `claude-haiku-5-5` | Claude model used for suggestions |
+| `LLM_TIMEOUT_SECONDS` | `20` | Per-request timeout for Claude |
 | `LLM_MAX_RETRIES` | `2` | SDK retries on timeouts, rate limits and 5xx |
 
-**What is sent to the model.** Only the unrecognised headers, up to 3 sample values per
-such column, and the names of the fields still unmapped. Emails become `<email>` and
-phone-like numbers have every digit replaced by `9` before leaving the process. Other
-values, such as names, are sent as they appear in the file. A model error, timeout or
-refusal never fails an upload: the suggestions are skipped.
+**What the suggesters see.** Only the unrecognised headers, up to 3 sample values per such
+column, and the names of the fields still unmapped. Emails become `<email>` and phone-like
+numbers have every digit replaced by `9` first. Other values, such as names, are kept as they
+appear in the file. The heuristic never sends anything anywhere; Ollama sends it to your own
+`OLLAMA_URL`; only `claude` leaves your machine. A suggester that errors, times out or
+refuses never fails an upload: its suggestions are skipped.
 
 **Stored files.** Each upload's original bytes are kept in the database so it can be
 reprocessed. Uploads from before this feature have no stored file and can't be reprocessed.
+
+## Evals
+
+[`evals/mapping_cases.jsonl`](evals/mapping_cases.jsonl) has 67 messy columns (a header, a few
+samples, and the field it should map to or `none`), including `Mob`, `Cntry`, `Date of
+Joining`, `Ref Code`, `Remarks` and Hindi, German and Spanish headers. The runner scores any
+suggester and lists its mistakes:
+
+```bash
+python evals/run_mapping_eval.py --suggester heuristic   # free, offline
+python evals/run_mapping_eval.py --suggester ollama      # free, needs Ollama running
+python evals/run_mapping_eval.py --suggester claude      # paid: one request per case
+```
+
+CI runs the heuristic eval against [`evals/baseline.json`](evals/baseline.json) and fails if
+accuracy drops. Results, with dates, models and caveats, are in
+[`evals/RESULTS.md`](evals/RESULTS.md).
 
 ## Run it
 
@@ -137,13 +172,14 @@ ruff check .
 ```
 
 CI (GitHub Actions) lints, applies migrations to a real PostgreSQL instance,
-and runs the test suite on every push. The tests never call the Anthropic API:
-they use a fake suggester, and a test fixture makes any real call fail.
+runs the test suite, and runs the mapping eval on every push. The tests never call the
+Anthropic API or Ollama: they use fake suggesters, and a test fixture makes any real
+Anthropic call fail.
 
 ## Tech
 
 Python · FastAPI · SQLAlchemy 2.0 · Alembic · PostgreSQL · Pydantic ·
-Anthropic SDK (Claude) · pytest · Docker Compose · GitHub Actions
+Ollama or Claude (optional) · pytest · Docker Compose · GitHub Actions
 
 ## Project layout
 
@@ -155,9 +191,13 @@ app/
   ingest/validation.py row cleaning and validation rules
   ingest/pipeline.py   map -> validate -> dedupe -> upsert -> record errors
   ingest/suggester.py  MappingSuggester protocol, PII masking, Claude suggester
+  ingest/heuristic.py  free offline suggester (the default)
+  ingest/ollama.py     local Ollama suggester
+  ingest/factory.py    picks the suggester from SUGGESTER
   ingest/service.py    background task wrapper
   models.py            Upload, Customer, RowError, Client, profile and suggestion tables
 migrations/            Alembic migrations
 samples/               example messy client file
+evals/                 mapping eval cases, runner, baseline and results
 tests/                 pytest suite
 ```
