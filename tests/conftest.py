@@ -1,11 +1,32 @@
+import functools
+
 import pytest
+from anthropic.resources.messages.messages import Messages
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import db
+from app.config import settings
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def no_real_llm(monkeypatch):
+    """Tests never call the real Anthropic API.
+
+    Even if a developer has ANTHROPIC_API_KEY in their environment or .env, the app sees
+    no key, and any call that still reaches the SDK fails loudly. Tests that need a
+    suggester pass in a fake one.
+    """
+    monkeypatch.setattr(settings, "anthropic_api_key", None)
+
+    @functools.wraps(Messages.create)
+    def refuse(*args, **kwargs):
+        raise AssertionError("a test tried to call the real Anthropic API; use a fake suggester")
+
+    monkeypatch.setattr(Messages, "create", refuse)
 
 
 @pytest.fixture
