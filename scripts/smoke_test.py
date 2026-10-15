@@ -6,7 +6,9 @@
 The key is read from the API_KEY environment variable (so it stays out of your shell
 history), or you are asked for it. It checks that /health and /docs are open, that the
 other endpoints refuse a missing or wrong key, then uploads samples/messy_customers.csv,
-waits for it to finish, and prints the status, the errors and the customers.
+waits for it to finish, and prints the status, the errors and the customers. Then it
+uploads a small file with headers nothing recognises and walks the review flow: the
+upload needs review, its suggestions are approved, and it is reprocessed to completion.
 
 Exit status 0 if every check passed.
 """
@@ -38,19 +40,97 @@ def request(method, url, key=None, body=None, content_type=None, timeout=60):
         return exc.code, exc.read()
 
 
-def upload_sample(base, key):
+def upload_file(base, key, filename, content):
     boundary = uuid.uuid4().hex
     body = (
         (
             f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="file"; filename="{SAMPLE.name}"\r\n'
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
             "Content-Type: text/csv\r\n\r\n"
         ).encode()
-        + SAMPLE.read_bytes()
+        + content
         + f"\r\n--{boundary}--\r\n".encode()
     )
     return request(
         "POST", f"{base}/uploads", key, body, f"multipart/form-data; boundary={boundary}"
+    )
+
+
+def upload_sample(base, key):
+    return upload_file(base, key, SAMPLE.name, SAMPLE.read_bytes())
+
+
+def wait_until_done(base, key, upload_id):
+    upload = {}
+    for _ in range(60):
+        _, raw = request("GET", f"{base}/uploads/{upload_id}", key)
+        upload = json.loads(raw)
+        if upload["status"] not in ("pending", "processing"):
+            break
+        time.sleep(1)
+    return upload
+
+
+# Headers none of the built-in aliases know, so the suggester is asked about them.
+REVIEW_CSV = (
+    b"Cust,Mail ID,Mob,Cntry,Remarks\n"
+    b"Demo Person,demo.person@example.com,98765 43210,India,first demo row\n"
+    b"Demo Second,demo.second@example.com,,us,\n"
+)
+
+
+def review_flow(base, key, check):
+    """Unknown headers -> needs_review -> approve the suggestions -> reprocess -> completed."""
+    status, raw = upload_file(base, key, "demo_unknown_headers.csv", REVIEW_CSV)
+    check("POST /uploads (unknown headers) -> 202", status == 202, f"got {status}")
+    if status != 202:
+        return
+    upload_id = json.loads(raw)["id"]
+
+    upload = wait_until_done(base, key, upload_id)
+    check("upload needs review", upload.get("status") == "needs_review", upload.get("status"))
+    print(f"    {upload.get('error_message')}")
+
+    _, raw = request("GET", f"{base}/uploads/{upload_id}/suggestions", key)
+    found = json.loads(raw)
+    print("    suggestions:")
+    for s in found:
+        print(
+            f"      {s['original_header']:<8} -> {str(s['suggested_field']):<12} "
+            f"confidence {s['confidence']:.2f}  [{s['status']}]"
+        )
+    suggested = {s["original_header"]: s["suggested_field"] for s in found}
+    check(
+        "suggestions are sensible",
+        suggested
+        == {
+            "Cust": "name",
+            "Mail ID": "email",
+            "Mob": "phone",
+            "Cntry": "country",
+            "Remarks": None,
+        },
+    )
+
+    approved = [
+        request("POST", f"{base}/suggestions/{s['id']}/approve", key)[0]
+        for s in found
+        if s["suggested_field"]
+    ]
+    check("approve the suggestions -> 200", approved == [200] * 4, str(approved))
+
+    status, _ = request("POST", f"{base}/uploads/{upload_id}/reprocess", key)
+    check("POST /uploads/{id}/reprocess -> 202", status == 202, f"got {status}")
+    upload = wait_until_done(base, key, upload_id)
+    check("reprocessed upload completed", upload.get("status") == "completed", upload.get("status"))
+    check(
+        "reprocess loaded both rows",
+        (upload.get("total_rows"), upload.get("valid_rows")) == (2, 2),
+        f"total {upload.get('total_rows')}, valid {upload.get('valid_rows')}",
+    )
+    print(
+        f"    result: {upload.get('status')}, inserted {upload.get('inserted')}, "
+        f"updated {upload.get('updated')}"
     )
 
 
@@ -98,13 +178,7 @@ def main(argv):
         return 1
     upload_id = json.loads(raw)["id"]
 
-    upload = {}
-    for _ in range(60):
-        _, raw = request("GET", f"{base}/uploads/{upload_id}", key)
-        upload = json.loads(raw)
-        if upload["status"] not in ("pending", "processing"):
-            break
-        time.sleep(1)
+    upload = wait_until_done(base, key, upload_id)
     check("upload finished", upload.get("status") == "completed", upload.get("status", "?"))
     check(
         "sample counts",
@@ -125,6 +199,9 @@ def main(argv):
     print(f"\nCustomers ({customers['total']}):")
     for c in customers["items"]:
         print(f"  {c['name']:<14} {c['email']:<26} {c['country_code']}  {c['phone'] or '-'}")
+
+    print("\nReview flow (headers nothing recognises):")
+    review_flow(base, key, check)
 
     print("\n" + ("All checks passed." if not failures else f"FAILED: {', '.join(failures)}"))
     return 1 if failures else 0

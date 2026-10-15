@@ -10,6 +10,12 @@ reports row-level errors the client can fix and re-upload.
 This is the unglamorous problem at the start of most enterprise integrations:
 before any system can use a client's data, someone has to get it in cleanly.
 
+**Live demo:** <https://client-onboarding-api.onrender.com/docs>. It runs for free on Render
+with a Neon PostgreSQL database, so the first request after it has been idle takes about a
+minute while it wakes up. Every endpoint except `/health` needs an API key: open the docs,
+click **Authorize** and paste one (ask the author for a demo key). See
+[Free public demo](#free-public-demo) for how it is deployed.
+
 ## What it does
 
 ```
