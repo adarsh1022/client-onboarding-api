@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 from sqlalchemy import select
 
-from app.ingest.heuristic import HeuristicSuggester, tokenize
+from app.ingest.heuristic import HeuristicSuggester, _is_typo, tokenize
 from app.ingest.pipeline import ingest
 from app.ingest.reader import ParsedFile
 from app.ingest.suggester import ColumnSample, mask_value
@@ -143,6 +143,48 @@ def test_a_none_answer_is_more_confident_the_further_nothing_is_from_a_field():
     assert far.field is None and near.field is None
     assert far.confidence >= 0.9
     assert far.confidence > near.confidence
+
+
+@pytest.mark.parametrize(
+    "a, b, expected",
+    [
+        ("email", "email", True),
+        ("emial", "email", True),  # swapped letters
+        ("phon", "phone", True),  # one letter missing
+        ("emails", "email", True),
+        ("nmae", "name", True),  # four letters: only swapped neighbours count
+        ("telefonnumer", "telefonnummer", True),  # long words tolerate a couple of slips
+        ("plan", "land", False),  # four letters, one substituted: a different word
+        ("city", "ctry", False),
+        ("mail", "mall", False),
+        ("tel", "tell", False),  # three letters: exact only
+    ],
+)
+def test_typo_tolerance_gets_stricter_for_short_words(a, b, expected):
+    assert _is_typo(a, b) is expected
+
+
+@pytest.mark.parametrize(
+    "header, values",
+    [
+        ("City", ["Pune", "Berlin"]),  # not "ctry"
+        ("Plan", ["Gold", "Silver"]),  # not "land"
+        (
+            "Address",
+            ["12 MG Road, Pune"],
+        ),  # not "email address": a shared generic word is no evidence
+    ],
+)
+def test_look_alike_short_words_and_generic_words_are_none(header, values):
+    assert suggest_one(header, *values).field is None
+
+
+def test_a_negative_word_that_belongs_to_the_field_does_not_count_against_it():
+    # "address" argues against phone, but "email address" is an email header.
+    assert suggest_one("Client Email Address", "priya@example.in").field == "email"
+    assert suggest_one("Client Email Address").field == "email"
+    # While a manager's email is still not the customer's.
+    assert suggest_one("Manager Email", "boss@example.com").field is None
 
 
 # --- several columns at once --------------------------------------------------------------

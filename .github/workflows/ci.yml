@@ -34,3 +34,5 @@ jobs:
         run: alembic upgrade head
       - name: Tests
         run: pytest -v
+      - name: Mapping eval (heuristic suggester must not get worse)
+        run: python evals/run_mapping_eval.py --suggester heuristic --baseline evals/baseline.json

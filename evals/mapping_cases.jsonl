@@ -1,0 +1,67 @@
+{"id": "c01", "split": "dev", "header": "Mob", "samples": ["98765 43210", "91234-56780"], "expected": "phone", "note": "abbreviation"}
+{"id": "c02", "split": "dev", "header": "Cntry", "samples": ["IN", "US", "India"], "expected": "country", "note": "abbreviation"}
+{"id": "c03", "split": "dev", "header": "Date of Joining", "samples": ["01/03/2024", "15/07/2023"], "expected": "signup_date", "note": "phrase for signup date"}
+{"id": "c04", "split": "dev", "header": "Ref Code", "samples": ["1234567890", "2345678901"], "expected": "none", "note": "ten digits but a reference, not a phone"}
+{"id": "c05", "split": "dev", "header": "Remarks", "samples": ["Called twice", "Needs Follow Up"], "expected": "none", "note": "capitalised words but a note"}
+{"id": "c06", "split": "dev", "header": "नाम", "samples": ["आशा राव", "जॉन स्मिथ"], "expected": "name", "note": "Hindi: name"}
+{"id": "c07", "split": "dev", "header": "ईमेल", "samples": ["asha@example.com"], "expected": "email", "note": "Hindi: email"}
+{"id": "c08", "split": "dev", "header": "फ़ोन", "samples": ["9876543210"], "expected": "phone", "note": "Hindi: phone"}
+{"id": "c09", "split": "dev", "header": "देश", "samples": ["भारत", "India"], "expected": "country", "note": "Hindi: country"}
+{"id": "c10", "split": "dev", "header": "Anmeldedatum", "samples": ["01.03.2024", "15.07.2023"], "expected": "signup_date", "note": "German: registration date"}
+{"id": "c11", "split": "dev", "header": "Telefonnummer", "samples": ["+49 170 1234567", "030 12345678"], "expected": "phone", "note": "German: phone number"}
+{"id": "c12", "split": "dev", "header": "E-Mail-Adresse", "samples": ["anna@beispiel.de"], "expected": "email", "note": "German: email address"}
+{"id": "c13", "split": "dev", "header": "Land", "samples": ["Deutschland", "Germany"], "expected": "country", "note": "German: country"}
+{"id": "c14", "split": "dev", "header": "Kundenname", "samples": ["Anna Schmidt", "Hans Müller"], "expected": "name", "note": "German: customer name"}
+{"id": "c15", "split": "dev", "header": "Nombre", "samples": ["María García", "Juan Pérez"], "expected": "name", "note": "Spanish: name"}
+{"id": "c16", "split": "dev", "header": "Correo electrónico", "samples": ["maria@ejemplo.es"], "expected": "email", "note": "Spanish: email"}
+{"id": "c17", "split": "dev", "header": "Teléfono", "samples": ["+34 612 345 678"], "expected": "phone", "note": "Spanish: phone"}
+{"id": "c18", "split": "dev", "header": "País", "samples": ["España", "Spain"], "expected": "country", "note": "Spanish: country"}
+{"id": "c19", "split": "dev", "header": "Fecha de registro", "samples": ["2024-03-01", "2023-12-15"], "expected": "signup_date", "note": "Spanish: registration date"}
+{"id": "c20", "split": "dev", "header": "Date of Birth", "samples": ["1990-05-01", "1985-11-23"], "expected": "none", "note": "a date, but not the signup date"}
+{"id": "c21", "split": "dev", "header": "Last Login", "samples": ["2025-01-02", "2025-02-03"], "expected": "none", "note": "a date, but not the signup date"}
+{"id": "c22", "split": "dev", "header": "Customer ID", "samples": ["C-1001", "C-1002"], "expected": "none", "note": "an identifier"}
+{"id": "c23", "split": "dev", "header": "Product Name", "samples": ["Widget Pro", "Gadget Max"], "expected": "none", "note": "a name, but not the customer's"}
+{"id": "c24", "split": "dev", "header": "Notes", "samples": ["vip", "prefers email"], "expected": "none", "note": "free text"}
+{"id": "c25", "split": "dev", "header": "Emial", "samples": ["asha@example.com"], "expected": "email", "note": "typo"}
+{"id": "c26", "split": "dev", "header": "Phone Nr", "samples": ["9876543210"], "expected": "phone", "note": "variant spelling"}
+{"id": "c27", "split": "dev", "header": "Customer Mobile Number", "samples": ["98765 43210"], "expected": "phone", "note": "extra words around the field word"}
+{"id": "c28", "split": "dev", "header": "Full Nmae", "samples": ["Asha Rao", "John Smith"], "expected": "name", "note": "typo"}
+{"id": "c29", "split": "dev", "header": "Contact", "samples": ["9876543210", "9123456780"], "expected": "phone", "note": "vague header, digits decide"}
+{"id": "c30", "split": "dev", "header": "Joined", "samples": ["2023-07-15", "2024-01-20"], "expected": "signup_date", "note": "known alias"}
+{"id": "c31", "split": "dev", "header": "Email", "samples": ["asha@example.com", "john@y.org"], "expected": "email", "note": "exact"}
+{"id": "c32", "split": "dev", "header": "Country", "samples": ["IN", "United States"], "expected": "country", "note": "exact"}
+{"id": "c33", "split": "dev", "header": "Phone", "samples": ["+91 98765-43210"], "expected": "phone", "note": "exact"}
+{"id": "c34", "split": "dev", "header": "Status", "samples": ["active", "inactive"], "expected": "none", "note": "a flag"}
+{"id": "c35", "split": "dev", "header": "Cust Name", "samples": ["Priya Sharma"], "expected": "name", "note": "known alias"}
+{"id": "c36", "split": "dev", "header": "Col7", "samples": ["asha@example.com", "john@y.org"], "expected": "email", "note": "meaningless header, values decide"}
+{"id": "c37", "split": "dev", "header": "Col8", "samples": ["2024-03-01", "2023-12-15"], "expected": "signup_date", "note": "meaningless header, values decide"}
+{"id": "c38", "split": "holdout", "header": "Client Email Address", "samples": ["priya@example.in"], "expected": "email", "note": "extra words"}
+{"id": "c39", "split": "holdout", "header": "Name of Client", "samples": ["Ravi Kumar", "Liam Chen"], "expected": "name", "note": "reordered words"}
+{"id": "c40", "split": "holdout", "header": "Member Since", "samples": ["2022-11-30", "2025-08-20"], "expected": "signup_date", "note": "phrase for signup date"}
+{"id": "c41", "split": "holdout", "header": "Created At", "samples": ["2024-06-05", "2025-02-01"], "expected": "signup_date", "note": "phrase for signup date"}
+{"id": "c42", "split": "holdout", "header": "Reg. Date", "samples": ["05/06/2024", "20/08/2025"], "expected": "signup_date", "note": "abbreviated phrase"}
+{"id": "c43", "split": "holdout", "header": "Whatsapp No", "samples": ["98200 11223", "65 9123 4567"], "expected": "phone", "note": "unfamiliar word, digits decide"}
+{"id": "c44", "split": "holdout", "header": "Nation", "samples": ["India", "Singapore"], "expected": "country", "note": "known alias"}
+{"id": "c45", "split": "holdout", "header": "Contact Person", "samples": ["Sofia Müller", "Liam Chen"], "expected": "name", "note": "a person's name"}
+{"id": "c46", "split": "holdout", "header": "Address", "samples": ["12 MG Road, Pune", "Flat 4B, Berlin"], "expected": "none", "note": "not a target field"}
+{"id": "c47", "split": "holdout", "header": "City", "samples": ["Pune", "Berlin"], "expected": "none", "note": "not a target field"}
+{"id": "c48", "split": "holdout", "header": "Company", "samples": ["Acme Pvt Ltd", "Beta GmbH"], "expected": "none", "note": "not a target field"}
+{"id": "c49", "split": "holdout", "header": "Order ID", "samples": ["ORD-1001", "ORD-1002"], "expected": "none", "note": "an identifier"}
+{"id": "c50", "split": "holdout", "header": "Referral Code", "samples": ["WELCOME10", "FRIEND5"], "expected": "none", "note": "a code"}
+{"id": "c51", "split": "holdout", "header": "Plan", "samples": ["Gold", "Silver"], "expected": "none", "note": "not a target field"}
+{"id": "c52", "split": "holdout", "header": "Manager Email", "samples": ["boss@example.com", "lead@example.org"], "expected": "none", "note": "an email, but not the customer's"}
+{"id": "c53", "split": "holdout", "header": "Age", "samples": ["34", "29"], "expected": "none", "note": "not a target field"}
+{"id": "c54", "split": "holdout", "header": "Pincode", "samples": ["411001", "10115"], "expected": "none", "note": "not a target field"}
+{"id": "c55", "split": "holdout", "header": "Handy", "samples": ["0170 1234567"], "expected": "phone", "note": "German slang for mobile"}
+{"id": "c56", "split": "holdout", "header": "Joining Date", "samples": ["2021-01-01", "2022-02-02"], "expected": "signup_date", "note": "phrase for signup date"}
+{"id": "c57", "split": "holdout", "header": "Phone Number", "samples": ["(020) 7946-0958"], "expected": "phone", "note": "known alias"}
+{"id": "c58", "split": "holdout", "header": "Comments", "samples": ["Great customer", "Late payer"], "expected": "none", "note": "free text"}
+{"id": "c59", "split": "holdout", "header": "Gender", "samples": ["F", "M"], "expected": "none", "note": "not a target field"}
+{"id": "c60", "split": "holdout", "header": "Employee Code", "samples": ["E1042", "E1043"], "expected": "none", "note": "a code"}
+{"id": "c61", "split": "holdout", "header": "Fax", "samples": ["020 7946 0000", "020 7946 0001"], "expected": "none", "note": "digits look like a phone, but it is a fax"}
+{"id": "c62", "split": "holdout", "header": "Birthday", "samples": ["15/08/1990", "02/02/1988"], "expected": "none", "note": "a date, but not the signup date"}
+{"id": "c63", "split": "holdout", "header": "मोबाइल नंबर", "samples": ["9876543210"], "expected": "phone", "note": "Hindi: mobile number"}
+{"id": "c64", "split": "holdout", "header": "पता", "samples": ["पुणे, महाराष्ट्र", "बर्लिन"], "expected": "none", "note": "Hindi: address"}
+{"id": "c65", "split": "holdout", "header": "Lieferadresse", "samples": ["Hauptstr. 5, Berlin"], "expected": "none", "note": "German: delivery address"}
+{"id": "c66", "split": "holdout", "header": "Dirección", "samples": ["Calle Mayor 5, Madrid"], "expected": "none", "note": "Spanish: address"}
+{"id": "c67", "split": "holdout", "header": "Ciudad", "samples": ["Madrid", "Sevilla"], "expected": "none", "note": "Spanish: city"}

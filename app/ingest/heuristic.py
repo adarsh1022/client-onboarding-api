@@ -139,6 +139,10 @@ NEGATIVE_TOKENS = {
 # Words that carry no meaning of their own, so sharing one doesn't make two headers alike.
 STOPWORDS = {"of", "the", "de", "del", "la", "el", "der", "die", "das", "ka", "ki", "on", "at"}
 
+# Words so common across fields that sharing only these says nothing ("Address" is not
+# "email address", "Product Name" is not "name").
+GENERIC_TOKENS = {"name", "address", "number", "no", "nr", "num", "date", "code", "id"}
+
 # After a matched word these mean "the identifier of it" ("Customer No", "Country Code" aside),
 # which is not the field itself, except for phone where "number" is the field ("Phone Nr").
 ID_WORDS = {"id", "no", "nr", "num", "number"}
@@ -164,6 +168,11 @@ def tokenize(text: str) -> list[str]:
 PHRASES: dict[str, list[list[str]]] = {
     field: [tokenize(alias) for alias in [*aliases, *SYNONYMS.get(field, [])]]
     for field, aliases in HEADER_ALIASES.items()
+}
+
+
+FIELD_WORDS: dict[str, set[str]] = {
+    field: {word for phrase in phrases for word in phrase} for field, phrases in PHRASES.items()
 }
 
 
@@ -220,7 +229,8 @@ class _Evidence:
 
 def _score(column: ColumnSample, field: str) -> _Evidence:
     tokens = tokenize(column.header)
-    negative = any(token in NEGATIVE_TOKENS for token in tokens)
+    # "address" argues against phone, but not against email, whose phrases contain it.
+    negative = any(t in NEGATIVE_TOKENS and t not in FIELD_WORDS[field] for t in tokens)
 
     header, phrase = _header_score(
         tokens, PHRASES[field], negative, number_is_field=field == "phone"
@@ -270,15 +280,17 @@ def _phrase_score(
     if header_text == phrase_text:
         return 1.0, True
 
-    if len(header) == len(phrase):  # a typo or small variation: "emial", "phone nr"
-        ratios = [SequenceMatcher(None, a, b).ratio() for a, b in zip(header, phrase, strict=True)]
-        if min(ratios) >= 0.75:  # every word must match: "customer id" is not "customer name"
-            return sum(ratios) / len(ratios), True
+    if len(header) == len(phrase) and all(
+        _is_typo(a, b) for a, b in zip(header, phrase, strict=True)
+    ):
+        return 0.85, True  # every word matches up to a typo: "emial", "full nmae"
 
     scores = [0.0]
     meaningful_header = set(header) - STOPWORDS
     meaningful_phrase = set(phrase) - STOPWORDS
     shared = meaningful_header & meaningful_phrase
+    if shared <= GENERIC_TOKENS:
+        shared = set()
     leftover = meaningful_header - meaningful_phrase
     is_identifier = bool(leftover) and leftover <= ID_WORDS and not number_is_field
     if shared and not is_identifier:
@@ -288,6 +300,42 @@ def _phrase_score(
     if len(header) == 1 and any(_is_abbreviation(header[0], word) for word in phrase):
         scores.append(0.75)
     return max(scores), False
+
+
+def _is_typo(a: str, b: str) -> bool:
+    """True if `a` and `b` are the same word up to a typo.
+
+    Short words are easy to confuse with other words ("plan" and "land" differ by one
+    letter), so the shorter the word the stricter this is: exact for 3 letters or fewer,
+    only swapped neighbours for 4 ("nmae"), one edit for 5-7, and a similarity ratio for
+    longer words.
+    """
+    if a == b:
+        return True
+    longest = max(len(a), len(b))
+    if longest < 4:
+        return False
+    if longest == 4:
+        return len(a) == len(b) and _edit_distance(a, b) == 1 and sorted(a) == sorted(b)
+    if longest <= 7:
+        return _edit_distance(a, b) <= 1
+    return SequenceMatcher(None, a, b).ratio() >= 0.85
+
+
+def _edit_distance(a: str, b: str) -> int:
+    """Insertions, deletions, substitutions and swaps of neighbouring letters (OSA)."""
+    previous2: list[int] = []
+    previous = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        current = [i]
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            best = min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost)
+            if i > 1 and j > 1 and ca == b[j - 2] and a[i - 2] == cb:
+                best = min(best, previous2[j - 2] + 1)
+            current.append(best)
+        previous2, previous = previous, current
+    return previous[-1]
 
 
 def _is_abbreviation(short: str, word: str) -> bool:
