@@ -44,7 +44,10 @@ most one column. `confidence` is how sure you are, from 0 to 1. `reason` is one 
 """
 
 _EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
-_DATE = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}$|^\d{1,2}[/-]\d{1,2}[/-]\d{4}$")
+_DATE = re.compile(
+    r"^(\d{4}[/.-]\d{1,2}[/.-]\d{1,2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})"
+    r"([ T]\d{1,2}:\d{2}(:\d{2})?)?$"
+)
 _PHONE_MIN_DIGITS = 7
 
 

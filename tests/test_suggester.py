@@ -35,6 +35,10 @@ FIELDS = ["name", "email", "phone"]
         ("9876543210", "9999999999"),
         ("2024-03-01", "2024-03-01"),  # dates carry no personal data and help the model
         ("01/03/2024", "01/03/2024"),
+        ("01.03.2024", "01.03.2024"),  # a German-style date keeps its shape too
+        ("2024/03/01", "2024/03/01"),
+        ("2024-03-01 10:15:00", "2024-03-01 10:15:00"),
+        ("020.7946.0958", "999.9999.9999"),  # dots alone don't make a phone number a date
         ("Asha Rao", "Asha Rao"),
         ("IN", "IN"),
         ("  padded  ", "padded"),
