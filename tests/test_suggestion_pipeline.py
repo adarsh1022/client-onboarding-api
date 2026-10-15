@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app.ingest.mapping import MappingError, find_columns, map_columns
 from app.ingest.pipeline import ingest
 from app.ingest.reader import ParsedFile
-from app.ingest.suggester import ColumnSample, ColumnSuggestion, SuggestionError
+from app.ingest.suggester import SuggestionError
 from app.models import (
     Client,
     ClientMappingProfile,
@@ -22,30 +22,11 @@ from app.models import (
     Upload,
     UploadStatus,
 )
+from tests.fakes import FakeSuggester
 
 TODAY = date(2026, 1, 15)
 HEADERS = ["Customer", "Mail ID", "Country"]  # "Country" is known; the other two aren't
 ROWS = [["Asha Rao", "asha@x.com", "IN"], ["John Smith", "john@y.com", "us"]]
-ANSWERS = {"Customer": ("name", 0.95, "holds people's names"), "Mail ID": ("email", 0.9, "emails")}
-
-
-class FakeSuggester:
-    """Answers from a canned {header: (field, confidence, reason)} dict and records calls."""
-
-    def __init__(self, answers=None, error=None):
-        self.answers = answers if answers is not None else ANSWERS
-        self.error = error
-        self.calls: list[tuple[list[ColumnSample], list[str]]] = []
-
-    def suggest(self, columns, fields):
-        self.calls.append((columns, fields))
-        if self.error:
-            raise self.error
-        return [
-            ColumnSuggestion(c.header, *self.answers[c.header])
-            for c in columns
-            if c.header in self.answers
-        ]
 
 
 def make_file(headers=HEADERS, rows=ROWS):
@@ -199,6 +180,35 @@ def test_suggestions_that_do_not_cover_a_required_field_still_fail_the_upload(se
 
 
 # --- approve, then reprocess --------------------------------------------------------------
+
+
+def test_reprocessing_without_approval_keeps_waiting_for_review(session):
+    upload = new_upload(session)
+    suggester = FakeSuggester()
+    for _ in range(2):
+        ingest(session, upload, make_file(), today=TODAY, suggester=suggester)
+
+    assert upload.status == UploadStatus.NEEDS_REVIEW  # pending suggestions are not applied
+    assert session.scalar(select(Customer)) is None
+    found = suggestions_for(session, upload)
+    assert [s.status for s in found.values()] == [SuggestionStatus.PENDING] * 2  # not duplicated
+    assert len(suggester.calls) == 1
+
+
+def test_reprocessing_does_not_apply_a_pending_optional_suggestion(session):
+    headers = ["Name", "Email", "Country", "Tel"]
+    rows = [["Asha", "asha@x.com", "IN", "9876543210"]]
+    suggester = FakeSuggester({"Tel": ("phone", 0.99, "phone numbers")})
+    upload = new_upload(session)
+    for _ in range(2):
+        ingest(session, upload, make_file(headers, rows), today=TODAY, suggester=suggester)
+
+    assert session.scalar(select(Customer)).phone is None
+    assert suggestions_for(session, upload)["Tel"].status == SuggestionStatus.PENDING
+
+    approve(session, suggestions_for(session, upload)["Tel"])
+    ingest(session, upload, make_file(headers, rows), today=TODAY, suggester=suggester)
+    assert session.scalar(select(Customer)).phone == "9876543210"  # applied once approved
 
 
 def test_approved_suggestions_are_used_when_the_upload_is_reprocessed(session):

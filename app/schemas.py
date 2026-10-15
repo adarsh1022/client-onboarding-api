@@ -1,9 +1,9 @@
 """Pydantic models: the shapes of data moving through the app and the API."""
 
 from datetime import date, datetime
-from typing import Generic, TypeVar
+from typing import Annotated, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
 
 class CleanCustomer(BaseModel):
@@ -31,6 +31,7 @@ class UploadOut(BaseModel):
 
     id: int
     filename: str
+    client_id: int | None
     status: str
     error_message: str | None
     total_rows: int
@@ -40,6 +41,36 @@ class UploadOut(BaseModel):
     updated: int
     created_at: datetime
     finished_at: datetime | None
+
+
+class ClientCreate(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+
+
+class ClientOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+
+
+class SuggestionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    upload_id: int
+    original_header: str
+    suggested_field: str | None
+    approved_field: str | None
+    confidence: float
+    reason: str
+    status: str
+
+
+class ApproveIn(BaseModel):
+    """Optional body for approving a suggestion: `field` overrides the suggested one."""
+
+    field: str | None = None
 
 
 class RowErrorOut(BaseModel):

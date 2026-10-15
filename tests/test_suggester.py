@@ -20,35 +20,9 @@ from app.ingest.suggester import (
     mask_value,
     sample_columns,
 )
+from tests.fakes import FakeClient, entry, reply_with
 
 FIELDS = ["name", "email", "phone"]
-
-
-class FakeClient:
-    """Stands in for anthropic.Anthropic: records requests, replays a canned reply."""
-
-    def __init__(self, reply=None, error=None):
-        self.requests = []
-        self.reply = reply
-        self.error = error
-        self.messages = SimpleNamespace(create=self._create)
-
-    def _create(self, **kwargs):
-        self.requests.append(kwargs)
-        if self.error:
-            raise self.error
-        return self.reply
-
-
-def reply_with(suggestions, stop_reason="end_turn"):
-    text = json.dumps({"suggestions": suggestions})
-    return SimpleNamespace(
-        stop_reason=stop_reason, content=[SimpleNamespace(type="text", text=text)]
-    )
-
-
-def entry(header, field, confidence=0.9, reason="looks right"):
-    return {"header": header, "field": field, "confidence": confidence, "reason": reason}
 
 
 @pytest.mark.parametrize(
