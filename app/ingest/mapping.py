@@ -21,7 +21,15 @@ REQUIRED_FIELDS = {"name", "email", "country"}
 
 
 class MappingError(ValueError):
-    """The file's headers can't be mapped. The message is shown to the client."""
+    """The file's headers can't be mapped. The message is shown to the client.
+
+    `missing` lists the required fields that had no column, when that is the problem
+    (it stays empty for an ambiguous mapping).
+    """
+
+    def __init__(self, message: str, missing: list[str] | None = None):
+        super().__init__(message)
+        self.missing = missing or []
 
 
 def normalize_header(header: str) -> str:
@@ -45,7 +53,30 @@ def normalize_header(header: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", lowered).strip("_")
 
 
-def map_columns(headers: list[str]) -> dict[str, str]:
+def find_columns(
+    headers: list[str], extra_aliases: dict[str, str] | None = None
+) -> dict[str, list[str]]:
+    """Group headers by the canonical field they match, without raising.
+
+    Matching order: the static HEADER_ALIASES first, then `extra_aliases`, a
+    {normalized header -> canonical field} dict such as a client's approved profile.
+    A static alias always wins over an extra one for the same header.
+    """
+    alias_to_field = {
+        alias: field for field, aliases in HEADER_ALIASES.items() for alias in aliases
+    }
+    for alias, field in (extra_aliases or {}).items():
+        alias_to_field.setdefault(alias, field)
+
+    matches: dict[str, list[str]] = {}
+    for header in headers:
+        field = alias_to_field.get(normalize_header(header))
+        if field is not None:
+            matches.setdefault(field, []).append(header)
+    return matches
+
+
+def map_columns(headers: list[str], extra_aliases: dict[str, str] | None = None) -> dict[str, str]:
     """Map canonical field names to the ORIGINAL header that holds them.
 
     Example:
@@ -62,16 +93,11 @@ def map_columns(headers: list[str]) -> dict[str, str]:
         names, sorted alphabetically and joined by ", ".
         e.g. "missing required columns: country, email"
       - Check ambiguity first, then missing columns.
-    """
-    alias_to_field = {
-        alias: field for field, aliases in HEADER_ALIASES.items() for alias in aliases
-    }
 
-    matches: dict[str, list[str]] = {}
-    for header in headers:
-        field = alias_to_field.get(normalize_header(header))
-        if field is not None:
-            matches.setdefault(field, []).append(header)
+    `extra_aliases` (optional) adds {normalized header -> canonical field} matches after
+    the static ones; see find_columns. Without it, only HEADER_ALIASES is used.
+    """
+    matches = find_columns(headers, extra_aliases)
 
     for field, originals in matches.items():
         if len(originals) > 1:
@@ -79,6 +105,6 @@ def map_columns(headers: list[str]) -> dict[str, str]:
 
     missing = sorted(REQUIRED_FIELDS - matches.keys())
     if missing:
-        raise MappingError(f"missing required columns: {', '.join(missing)}")
+        raise MappingError(f"missing required columns: {', '.join(missing)}", missing=missing)
 
     return {field: originals[0] for field, originals in matches.items()}
