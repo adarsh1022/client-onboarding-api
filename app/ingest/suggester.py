@@ -102,7 +102,8 @@ def sample_columns(
     return columns
 
 
-def _response_schema(fields: list[str]) -> dict[str, Any]:
+def response_schema(fields: list[str]) -> dict[str, Any]:
+    """JSON schema every LLM-backed suggester asks the model to follow."""
     return {
         "type": "object",
         "properties": {
@@ -126,6 +127,15 @@ def _response_schema(fields: list[str]) -> dict[str, Any]:
     }
 
 
+def build_payload(columns: list[ColumnSample], fields: list[str]) -> str:
+    """The user message sent to an LLM: target fields plus the (already masked) columns."""
+    payload = {
+        "target_fields": {f: FIELD_DESCRIPTIONS.get(f, f) for f in fields},
+        "columns": [{"header": c.header, "samples": c.samples} for c in columns],
+    }
+    return json.dumps(payload)
+
+
 class ClaudeSuggester:
     """Suggests mappings with Claude, using a JSON-schema constrained response."""
 
@@ -147,18 +157,14 @@ class ClaudeSuggester:
         return cls(client, model=config.llm_model)
 
     def suggest(self, columns: list[ColumnSample], fields: list[str]) -> list[ColumnSuggestion]:
-        payload = {
-            "target_fields": {f: FIELD_DESCRIPTIONS.get(f, f) for f in fields},
-            "columns": [{"header": c.header, "samples": c.samples} for c in columns],
-        }
         try:
             response = self._client.messages.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
                 system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": json.dumps(payload)}],
+                messages=[{"role": "user", "content": build_payload(columns, fields)}],
                 output_config={
-                    "format": {"type": "json_schema", "schema": _response_schema(fields)}
+                    "format": {"type": "json_schema", "schema": response_schema(fields)}
                 },
             )
         except anthropic.APIError as exc:
@@ -169,10 +175,14 @@ class ClaudeSuggester:
         text = next((block.text for block in response.content if block.type == "text"), None)
         if text is None:
             raise SuggestionError("Claude returned no text")
-        return _parse(text, [c.header for c in columns], fields)
+        return parse_suggestions(text, [c.header for c in columns], fields)
 
 
-def _parse(text: str, headers: list[str], fields: list[str]) -> list[ColumnSuggestion]:
+def parse_suggestions(text: str, headers: list[str], fields: list[str]) -> list[ColumnSuggestion]:
+    """Read a model's JSON reply, dropping invented headers and out-of-range values.
+
+    Raises SuggestionError if the reply isn't the JSON shape `response_schema` describes.
+    """
     try:
         items = json.loads(text)["suggestions"]
         suggestions: dict[str, ColumnSuggestion] = {}
@@ -185,7 +195,7 @@ def _parse(text: str, headers: list[str], fields: list[str]) -> list[ColumnSugge
             reason = str(item["reason"])[:MAX_REASON_CHARS]
             suggestions[header] = ColumnSuggestion(header, chosen, confidence, reason)
     except (ValueError, KeyError, TypeError) as exc:
-        raise SuggestionError("Claude returned output we couldn't read") from exc
+        raise SuggestionError("the model returned output we couldn't read") from exc
     return list(suggestions.values())
 
 

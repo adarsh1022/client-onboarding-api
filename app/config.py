@@ -20,5 +20,11 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 20.0
     llm_max_retries: int = 2
 
+    # A local Ollama server: free and offline, no API key.
+    ollama_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:3b"
+    ollama_timeout_seconds: float = 60.0  # small local models can be slow on a CPU
+    ollama_max_retries: int = 2
+
 
 settings = Settings()
