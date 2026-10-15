@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import db
+from app.auth import require_api_key
 from app.config import settings
 from app.ingest.factory import get_suggester
 from app.ingest.mapping import HEADER_ALIASES, normalize_header
@@ -30,6 +31,7 @@ from app.models import (
     Upload,
     UploadStatus,
 )
+from app.ratelimit import limit_uploads
 from app.schemas import (
     ApproveIn,
     ClientCreate,
@@ -41,12 +43,14 @@ from app.schemas import (
     UploadOut,
 )
 
-router = APIRouter()
+# Everything except /health needs a valid X-API-Key header.
+public_router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_api_key)])
 
 ALLOWED_EXTENSIONS = (".csv", ".xlsx")
 
 
-@router.get("/health")
+@public_router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
@@ -67,7 +71,12 @@ def create_client(payload: ClientCreate, session: Session = Depends(db.get_sessi
     return client
 
 
-@router.post("/uploads", response_model=UploadOut, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/uploads",
+    response_model=UploadOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(limit_uploads)],
+)
 async def create_upload(
     file: UploadFile,
     background: BackgroundTasks,
@@ -110,7 +119,10 @@ def get_upload(upload_id: int, session: Session = Depends(db.get_session)) -> Up
 
 
 @router.post(
-    "/uploads/{upload_id}/reprocess", response_model=UploadOut, status_code=status.HTTP_202_ACCEPTED
+    "/uploads/{upload_id}/reprocess",
+    response_model=UploadOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(limit_uploads)],
 )
 def reprocess_upload(
     upload_id: int,

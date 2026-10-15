@@ -1,5 +1,6 @@
 """Database tables.
 
+ApiKey                - a hashed key that may call the API.
 Client                - a client company that sends us files.
 ClientMappingProfile  - a header -> canonical field mapping a client's reviewer approved.
 Upload                - one file a client sent us, and how processing went.
@@ -43,6 +44,19 @@ class SuggestionStatus:
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+class ApiKey(Base):
+    """A key that may call the API. Only its SHA-256 hash is stored, never the key."""
+
+    __tablename__ = "api_keys"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    prefix: Mapped[str] = mapped_column(String(10))  # first few characters, to tell keys apart
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class Client(Base):
