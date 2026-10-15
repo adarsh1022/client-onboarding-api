@@ -13,14 +13,16 @@ from app.main import app
 
 
 @pytest.fixture(autouse=True)
-def no_real_llm(monkeypatch):
-    """Tests never call the real Anthropic API.
+def offline_suggester(monkeypatch):
+    """Tests use the free heuristic suggester unless they pass in a fake, and never call
+    the real Anthropic API or a local Ollama.
 
-    Even if a developer has ANTHROPIC_API_KEY in their environment or .env, the app sees
-    no key, and any call that still reaches the SDK fails loudly. Tests that need a
-    suggester pass in a fake one.
+    Even if a developer has ANTHROPIC_API_KEY or SUGGESTER in their environment or .env,
+    the app sees no key and the heuristic suggester, and any call that still reaches the
+    Anthropic SDK fails loudly.
     """
     monkeypatch.setattr(settings, "anthropic_api_key", None)
+    monkeypatch.setattr(settings, "suggester", "heuristic")
 
     @functools.wraps(Messages.create)
     def refuse(*args, **kwargs):

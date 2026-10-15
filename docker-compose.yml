@@ -19,7 +19,12 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql+psycopg://onboarding:onboarding@db:5432/onboarding
-      # Optional: set in your shell or a .env next to this file to enable AI mapping.
+      # Mapping suggestions are free by default (SUGGESTER=heuristic). See .env.example.
+      SUGGESTER: ${SUGGESTER:-heuristic}
+      # For SUGGESTER=ollama: reach an Ollama running on your machine from the container.
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      # For SUGGESTER=claude (paid):
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-claude-haiku-5-5}
     ports:

@@ -7,7 +7,9 @@ import json
 
 import pytest
 
-from app.ingest.suggester import ClaudeSuggester, SuggestionError, get_suggester
+from app.config import settings
+from app.ingest.factory import get_suggester
+from app.ingest.suggester import ClaudeSuggester, SuggestionError
 from app.main import app
 from app.models import Upload, UploadStatus
 from tests.fakes import FakeClient, FakeSuggester, entry, reply_with
@@ -194,8 +196,25 @@ def test_uploaded_bytes_are_stored_for_reprocessing(client, session_factory, sug
 # --- no API key, failing model, masking ---------------------------------------------------
 
 
-def test_without_an_api_key_suggestions_are_skipped_gracefully(client):
-    # No dependency override: the real get_suggester runs, and the test settings have no key.
+def test_by_default_suggestions_are_free_and_need_no_api_key(client):
+    # No override and no key: the default heuristic suggester runs, offline.
+    upload_id = upload(client)
+
+    assert get_upload(client, upload_id)["status"] == "needs_review"
+    found = suggestions(client, upload_id)
+    assert {h: s["suggested_field"] for h, s in found.items()} == {
+        "Customer": "name",
+        "Mail ID": "email",
+    }
+
+    for s in found.values():
+        assert client.post(f"/suggestions/{s['id']}/approve").status_code == 200
+    client.post(f"/uploads/{upload_id}/reprocess")
+    assert get_upload(client, upload_id)["status"] == "completed"
+
+
+def test_claude_without_an_api_key_skips_suggestions_gracefully(client, monkeypatch):
+    monkeypatch.setattr(settings, "suggester", "claude")  # chosen, but there is no key
     upload_id = upload(client)
 
     body = get_upload(client, upload_id)

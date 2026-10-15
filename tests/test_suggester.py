@@ -16,7 +16,6 @@ from app.ingest.suggester import (
     ClaudeSuggester,
     ColumnSample,
     SuggestionError,
-    get_suggester,
     mask_value,
     sample_columns,
 )
@@ -158,7 +157,6 @@ def test_failures_become_suggestion_errors(client):
 def test_no_api_key_means_no_suggester():
     assert ClaudeSuggester.from_settings(Settings(anthropic_api_key=None, _env_file=None)) is None
     assert ClaudeSuggester.from_settings(Settings(anthropic_api_key="", _env_file=None)) is None
-    assert get_suggester() is None  # the conftest fixture removes any key from the environment
 
 
 def test_client_is_built_with_timeout_retries_and_model():

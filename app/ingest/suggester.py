@@ -200,8 +200,3 @@ def parse_suggestions(text: str, headers: list[str], fields: list[str]) -> list[
     except (ValueError, KeyError, TypeError) as exc:
         raise SuggestionError("the model returned output we couldn't read") from exc
     return list(suggestions.values())
-
-
-def get_suggester() -> MappingSuggester | None:
-    """FastAPI dependency. None means "no API key configured": skip suggestions."""
-    return ClaudeSuggester.from_settings()

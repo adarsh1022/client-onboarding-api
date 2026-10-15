@@ -16,9 +16,10 @@ from sqlalchemy.orm import Session
 
 from app import db
 from app.config import settings
+from app.ingest.factory import get_suggester
 from app.ingest.mapping import HEADER_ALIASES, normalize_header
 from app.ingest.service import process_upload
-from app.ingest.suggester import MappingSuggester, get_suggester
+from app.ingest.suggester import MappingSuggester
 from app.models import (
     Client,
     ClientMappingProfile,
