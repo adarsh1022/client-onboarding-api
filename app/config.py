@@ -16,6 +16,17 @@ class Settings(BaseSettings):
     # Uploads larger than this are rejected with HTTP 413.
     max_upload_bytes: int = 5 * 1024 * 1024
 
+    # Logging: "json" is one JSON object per line (for log shippers); "text" is easier to
+    # read while developing. Every line carries the request ID of the request that made it.
+    log_level: str = "INFO"
+    log_format: Literal["json", "text"] = "json"
+
+    # Optional Redis (caching and rate limiting). Unset means "no Redis": the app still
+    # works, it just falls back to the database and to in-memory counters. Use a rediss://
+    # URL for a TLS service such as Upstash.
+    redis_url: str | None = None
+    redis_timeout_seconds: float = 1.0  # connect and read timeout, so a dead Redis fails fast
+
     # Each API key may start this many uploads (or reprocesses) per window; 0 turns it off.
     # The counters live in memory, so they are per process and reset on restart.
     rate_limit_uploads: int = 10
@@ -53,10 +64,24 @@ class Settings(BaseSettings):
                 return "postgresql+psycopg://" + value[len(prefix) :]
         return value
 
-    @field_validator("suggester", mode="before")
+    @field_validator("suggester", "log_format", mode="before")
     @classmethod
-    def _lowercase_suggester(cls, value):
+    def _lowercase_choice(cls, value):
         return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("log_level")
+    @classmethod
+    def _valid_log_level(cls, value: str) -> str:
+        level = value.strip().upper()
+        if level not in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+            raise ValueError("LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR or CRITICAL")
+        return level
+
+    @field_validator("redis_url", mode="before")
+    @classmethod
+    def _blank_redis_url_means_none(cls, value):
+        # REDIS_URL= (empty) in a .env file should mean "not configured", not a bad URL.
+        return None if isinstance(value, str) and not value.strip() else value
 
 
 settings = Settings()

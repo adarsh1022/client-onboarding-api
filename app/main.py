@@ -1,16 +1,18 @@
 """App entry point.  Run locally with:  uvicorn app.main:app --reload"""
 
-import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api.routes import public_router, router
-from app.auth import ensure_bootstrap_key
+from app.auth import ensure_bootstrap_key, require_api_key
 from app.config import settings
+from app.errors import register_error_handlers
+from app.logging_config import setup_logging
+from app.middleware import RequestContextMiddleware
+from app.routers import protected_routers, public_routers
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+setup_logging()
 
 # Room for multipart boundaries and form fields on top of the largest allowed file.
 BODY_OVERHEAD_BYTES = 64 * 1024
@@ -28,12 +30,13 @@ app = FastAPI(
         "Upload messy client customer files (CSV/Excel). The service maps their "
         "columns, validates every row, loads clean records into SQL, and reports "
         "row-level errors the client can fix.\n\n"
-        "Every endpoint except `/health` needs an API key: click **Authorize** and paste "
-        "it, or send it in the `X-API-Key` header."
+        "Every endpoint except `/health` and `/health/ready` needs an API key: click "
+        "**Authorize** and paste it, or send it in the `X-API-Key` header."
     ),
     version="0.1.0",
     lifespan=lifespan,
 )
+register_error_handlers(app)
 
 
 @app.middleware("http")
@@ -50,5 +53,10 @@ async def reject_oversized_bodies(request: Request, call_next):
     return await call_next(request)
 
 
-app.include_router(public_router)
-app.include_router(router)
+# Added last so it is the outermost middleware: even the 413 above gets a request ID.
+app.add_middleware(RequestContextMiddleware)
+
+for public_router in public_routers:
+    app.include_router(public_router)
+for protected_router in protected_routers:
+    app.include_router(protected_router, dependencies=[Depends(require_api_key)])
