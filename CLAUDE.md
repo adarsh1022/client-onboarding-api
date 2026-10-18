@@ -31,13 +31,20 @@ docker compose up --build       # run with PostgreSQL
 ## Architecture
 
 - `app/auth.py`: API keys. Every endpoint except `/health` (and `/docs`) needs a valid
-  `X-API-Key`; only the SHA-256 hash is stored. New endpoints go on `router` (protected), never
-  `public_router`; a test walks the OpenAPI schema and fails on any unprotected route.
+  `X-API-Key`; only the SHA-256 hash is stored. New endpoint routers go in `protected_routers`, never
+  `public_routers` (see `app/routers/__init__.py`); a test walks the OpenAPI schema and fails on any
+  unprotected route that is not in its short public list.
   `app/ratelimit.py` limits the upload endpoints per key (in memory). `app/cli.py` manages keys.
 - `render.yaml` + `docs/DEPLOY.md`: the free Render + Neon demo. Never commit secrets: they are
   `sync: false` variables set in the Render dashboard.
-- `app/api/routes.py`: FastAPI endpoints. `POST /uploads` stores an Upload row
-  and schedules `process_upload` as a background task, returning 202.
+- Layers: `app/routers/` (HTTP only) -> `app/services/` (rules; raise `app/errors.py` errors, commit)
+  -> `app/repositories/` (the only place that writes queries; never commit). Routers know nothing
+  about SQL and services know nothing about HTTP. `POST /uploads` stores an Upload row and
+  schedules `process_upload` as a background task, returning 202.
+- `app/config.py` is the only place settings are read; add every new setting there and to
+  `.env.example`. `app/logging_config.py` + `app/middleware.py` give every log line a `request_id`.
+  Never log headers, query strings or file contents. Redis is optional (`app/redis_client.py`):
+  code that uses it must keep working when `get_redis()` returns None or Redis is down.
 - `app/ingest/service.py`: background task. Opens its own session, reads
   the file, calls `ingest`, and marks the upload failed on any exception.
 - `app/ingest/reader.py`: CSV/XLSX -> `ParsedFile(headers, rows)`, all values strings.

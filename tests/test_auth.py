@@ -14,7 +14,14 @@ from app.main import app
 from app.models import ApiKey
 
 CSV = b"Name,Email,Country\nAsha,asha@x.com,IN\n"
-PUBLIC_PATHS = {"/health", "/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"}
+PUBLIC_PATHS = {
+    "/health",
+    "/health/ready",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/docs/oauth2-redirect",
+}
 BOOTSTRAP_KEY = "bootstrap-key-for-tests-0123456789abcdef"  # 40 characters
 
 
@@ -83,7 +90,7 @@ def test_the_header_name_is_case_insensitive(anonymous_client, api_key):
 
 
 def test_public_endpoints_need_no_key(anonymous_client):
-    for path in ("/health", "/docs", "/redoc", "/openapi.json"):
+    for path in ("/health", "/health/ready", "/docs", "/redoc", "/openapi.json"):
         assert anonymous_client.get(path).status_code == 200, path
 
 

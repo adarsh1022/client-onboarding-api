@@ -12,7 +12,7 @@ before any system can use a client's data, someone has to get it in cleanly.
 
 **Live demo:** <https://client-onboarding-api.onrender.com/docs>. It runs for free on Render
 with a Neon PostgreSQL database, so the first request after it has been idle takes about a
-minute while it wakes up. Every endpoint except `/health` needs an API key: open the docs,
+minute while it wakes up. Every endpoint except `/health` and `/health/ready` needs an API key: open the docs,
 click **Authorize** and paste one (ask the author for a demo key). See
 [Free public demo](#free-public-demo) for how it is deployed.
 
@@ -62,7 +62,8 @@ client file ──► POST /uploads ──► 202 Accepted (upload id)
 | `POST` | `/suggestions/{id}/reject` | Dismiss a suggestion |
 | `POST` | `/uploads/{id}/reprocess` | Run the stored file through the pipeline again |
 | `GET` | `/customers` | Paginated customers; filter by `country`, search with `q` |
-| `GET` | `/health` | Liveness check |
+| `GET` | `/health` | Liveness: the process is up (touches nothing, no key needed) |
+| `GET` | `/health/ready` | Readiness: checks the database and, if `REDIS_URL` is set, Redis (no key needed) |
 
 Every endpoint except `/health` needs an API key in the `X-API-Key` header; see
 [Authentication](#authentication). Interactive docs are at `http://localhost:8000/docs` once
@@ -170,6 +171,34 @@ CI runs the heuristic eval against [`evals/baseline.json`](evals/baseline.json) 
 accuracy drops. Results, with dates, models and caveats, are in
 [`evals/RESULTS.md`](evals/RESULTS.md).
 
+## Logging and health checks
+
+Logs go to stdout as one JSON object per line. Every line carries a `request_id`; the same ID
+is returned in the `X-Request-ID` response header, and a caller may send its own (letters,
+digits, `.`, `_`, `-`, up to 64 characters; anything else is replaced). Searching the logs for
+one ID shows everything one request did, including work done in its background task.
+
+```json
+{"timestamp": "2026-10-18T01:40:26.365+00:00", "level": "INFO", "logger": "app.request", "message": "request completed", "request_id": "ad82cd64961a41c08e349a3fdd6a4dac", "method": "GET", "path": "/customers", "status_code": 200, "duration_ms": 6.5}
+```
+
+The request line has the method, path, status and duration. It never includes the query
+string or any header, so search terms, API keys and tokens stay out of the logs. Set
+`LOG_FORMAT=text` for a readable format while developing, and `LOG_LEVEL` to change verbosity.
+
+`/health` is liveness and does no work, so point a platform health check (Render, a load
+balancer) at it. `/health/ready` is readiness:
+
+| Database | Redis | Answer |
+|---|---|---|
+| up | up, or not configured | `200` `ok` |
+| up | configured but unreachable | `200` `degraded` (Redis is optional, so the app keeps working) |
+| down | any | `503` `unavailable` |
+
+The response names a failing check by error class only, never a hostname or connection string;
+the full error is in the logs. Do not use `/health/ready` as a frequent platform health check
+on the free demo: it queries the database, which would keep Neon awake.
+
 ## Run it
 
 **With Docker (PostgreSQL):**
@@ -221,14 +250,22 @@ Anthropic call fail.
 
 ## Tech
 
-Python · FastAPI · SQLAlchemy 2.0 · Alembic · PostgreSQL · Pydantic ·
+Python · FastAPI · SQLAlchemy 2.0 · Alembic · PostgreSQL · Redis (optional) · Pydantic ·
 Ollama or Claude (optional) · pytest · Docker Compose · GitHub Actions
 
 ## Project layout
 
 ```
 app/
-  api/routes.py        HTTP endpoints
+  routers/             HTTP layer: parse the request, call a service, shape the response
+  services/            business rules (raise errors from errors.py, commit)
+  repositories/        the only code that writes database queries
+  schemas.py           request/response models (Pydantic)
+  errors.py            service errors and how they become HTTP responses
+  config.py            all settings, read from environment variables
+  logging_config.py    JSON logging and the request-ID context
+  middleware.py        assigns the request ID and logs each request
+  redis_client.py      the optional shared Redis connection
   ingest/reader.py     CSV / XLSX -> rows of strings
   ingest/mapping.py    header normalisation and column mapping
   ingest/validation.py row cleaning and validation rules
